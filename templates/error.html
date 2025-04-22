@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="alert alert-danger">
+    <h4>Error</h4>
+    <p>There was an error connecting to AWS or processing your request. Please check your AWS credentials and permissions.</p>
+</div>
+<a href="{{ url_for('index') }}" class="btn btn-primary">Try Again</a>
+{% endblock %}

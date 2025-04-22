@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1>Pending Security Group Changes</h1>
+
+{% if pending_changes %}
+<div class="table-container">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Security Group</th>
+                <th>Requested By</th>
+                <th>Action</th>
+                <th>Protocol</th>
+                <th>Port Range</th>
+                <th>CIDR IP</th>
+                <th>Date Requested</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for change in pending_changes %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('security_group_detail', group_id=change.group_id) }}">
+                        {{ change.group_id }}
+                    </a>
+                </td>
+                <td>{{ change.user.username }}</td>
+                <td>
+                    {% if change.action == 'add' %}
+                    <span class="badge bg-success">Add</span>
+                    {% else %}
+                    <span class="badge bg-danger">Delete</span>
+                    {% endif %}
+                </td>
+                <td>{{ change.protocol }}</td>
+                <td>
+                    {% if change.from_port == change.to_port %}
+                    {{ change.from_port }}
+                    {% else %}
+                    {{ change.from_port }} - {{ change.to_port }}
+                    {% endif %}
+                </td>
+                <td>{{ change.cidr_ip }}</td>
+                <td>{{ change.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <div class="d-flex">
+                        <form action="{{ url_for('approve_change', change_id=change.id) }}" method="post" class="me-1">
+                            <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                        </form>
+                        <form action="{{ url_for('reject_change', change_id=change.id) }}" method="post">
+                            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">
+    No pending changes at this time.
+</div>
+{% endif %}
+{% endblock %}

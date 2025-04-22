@@ -1,0 +1,179 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+    <h1>Security Group: {{ security_group.GroupName }}</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to List</a>
+</div>
+
+<!-- Admin notification message -->
+{% if is_admin %}
+    <div class="alert alert-info">
+        <strong>Note:</strong> You are logged in as an admin. Your changes will be applied immediately without requiring approval.
+    </div>
+{% endif %}
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h5>Group Details</h5>
+    </div>
+    <div class="card-body">
+        <p><strong>Group ID:</strong> {{ security_group.GroupId }}</p>
+        <p><strong>Description:</strong> {{ security_group.Description }}</p>
+        <p><strong>VPC ID:</strong> {{ security_group.VpcId }}</p>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Ingress Rules</h5>
+    </div>
+    <div class="card-body">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Protocol</th>
+                    <th>Port Range</th>
+                    <th>Source IP</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rule in security_group.IpPermissions %}
+                    {% for ip_range in rule.IpRanges %}
+                    <tr>
+                        <td>{{ rule.IpProtocol }}</td>
+                        <td>
+                            {% if rule.FromPort == rule.ToPort %}
+                                {{ rule.FromPort }}
+                            {% else %}
+                                {{ rule.FromPort }} - {{ rule.ToPort }}
+                            {% endif %}
+                        </td>
+                        <td>{{ ip_range.CidrIp }}</td>
+                        <td>{{ ip_range.Description if ip_range.Description is defined else "" }}</td>
+                        <td>
+                            <form action="{{ url_for('request_delete_rule') }}" method="post" onsubmit="return confirm('Are you sure you want to request deletion of this rule?')">
+                                <input type="hidden" name="group_id" value="{{ security_group.GroupId }}">
+                                <input type="hidden" name="protocol" value="{{ rule.IpProtocol }}">
+                                <input type="hidden" name="from_port" value="{{ rule.FromPort }}">
+                                <input type="hidden" name="to_port" value="{{ rule.ToPort }}">
+                                <input type="hidden" name="cidr_ip" value="{{ ip_range.CidrIp }}">
+                                <button type="submit" class="btn btn-danger btn-sm">Request Deletion</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if pending_changes %}
+<div class="card mt-4">
+    <div class="card-header bg-warning text-dark">
+        <h5>Pending Changes</h5>
+    </div>
+    <div class="card-body">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Requested By</th>
+                    <th>Action</th>
+                    <th>Protocol</th>
+                    <th>Port Range</th>
+                    <th>CIDR IP</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in pending_changes %}
+                <tr>
+                    <td>{{ change.user.username }}</td>
+                    <td>
+                        {% if change.action == 'add' %}
+                        <span class="badge bg-success">Add</span>
+                        {% else %}
+                        <span class="badge bg-danger">Delete</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ change.protocol }}</td>
+                    <td>
+                        {% if change.from_port == change.to_port %}
+                        {{ change.from_port }}
+                        {% else %}
+                        {{ change.from_port }} - {{ change.to_port }}
+                        {% endif %}
+                    </td>
+                    <td>{{ change.cidr_ip }}</td>
+                    <td>{{ change.description or '' }}</td>
+                    <td>
+                        {% if is_admin and not change.user.is_admin %}
+                        <div class="d-flex">
+                            <form action="{{ url_for('approve_change', change_id=change.id) }}" method="post" class="me-1">
+                                <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                            </form>
+                            <form action="{{ url_for('reject_change', change_id=change.id) }}" method="post">
+                                <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">Awaiting Approval</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Request New Ingress Rule</h5>
+    </div>
+    <div class="card-body">
+        <form action="{{ url_for('request_add_rule') }}" method="post">
+            <input type="hidden" name="group_id" value="{{ security_group.GroupId }}">
+            
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label for="protocol" class="form-label">Protocol</label>
+                    <select name="protocol" id="protocol" class="form-select" required>
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                        <option value="icmp">ICMP</option>
+                        <option value="-1">All</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="from_port" class="form-label">From Port</label>
+                    <input type="number" class="form-control" id="from_port" name="from_port" min="0" max="65535" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="to_port" class="form-label">To Port</label>
+                    <input type="number" class="form-control" id="to_port" name="to_port" min="0" max="65535" required>
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="cidr_ip" class="form-label">CIDR IP</label>
+                    <input type="text" class="form-control" id="cidr_ip" name="cidr_ip" placeholder="0.0.0.0/0" required>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <input type="text" class="form-control" id="description" name="description" placeholder="Optional description">
+            </div>
+            
+            <button type="submit" class="btn btn-success">Request Rule Addition</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
